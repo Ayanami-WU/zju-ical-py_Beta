@@ -63,7 +63,11 @@ class Course(ABC):
         if self.end < other.start:
             return None
 
-        assert self.end == other.start, "相同课程不应该发生重叠，请联系开发者"
+        if self.start == other.start and self.end == other.end:
+            logger.warning(
+                f"发现重复课程: {self.name}, 时间: 星期{self.dayOfWeek} {self.start}-{self.end}"
+            )
+
         return self.start, other.end
 
     def isInTerm(self, term: Term) -> bool:
@@ -112,7 +116,7 @@ T = TypeVar("T", bound="Course")
 
 
 class CourseTable(ABC, Generic[T]):
-    def __init__(self):
+    def __init__(self) -> None:
         self.courses: list[T] = []
 
     def __repr__(self) -> str:
