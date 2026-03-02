@@ -6,7 +6,7 @@ from loguru import logger
 from main.integration import getCalender
 from utils.config import config
 
-VERSION = "1.0.4"
+VERSION = "1.1.0"
 
 if __name__ == "__main__":
 
@@ -45,6 +45,12 @@ if __name__ == "__main__":
         help='config file (default "configs/config.json")',
     )
     parse(
+        "-a",
+        "--all",
+        action="store_true",
+        help="generate calendar for all config.*.json files in configs folder (overrides --config)",
+    )
+    parse(
         "-o",
         "--output",
         type=str,
@@ -58,9 +64,21 @@ if __name__ == "__main__":
         help="force write to target file",
     )
     parse(
-        "--skip-verification",
+        "--skip-verification-and-use",
+        type=str,
+        choices=["grs", "ugrs"],
+        help="skip verification for student id format, and use specified login method",
+    )
+    parse(
+        "--delay",
+        type=float,
+        default=1.5,
+        help="delay between requests in seconds (default 1.5)",
+    )
+    parse(
+        "--include-todos",
         action="store_true",
-        help="skip verification for non-undergraduate account",
+        help="include todos (homework deadlines) in the calendar",
     )
     parse(
         "-v",
@@ -81,8 +99,19 @@ if __name__ == "__main__":
         else:
             logger.warning(f"输出文件 {args.output} 已存在，将被覆盖")
 
-    config.load(args.config)
-    cal = getCalender(args.username, args.password, args.skip_verification)
+    if args.all:
+        logger.info("使用 --all 模式，将生成所有配置文件的日历")
+        config.loadAll()
+    else:
+        config.load(args.config)
+
+    cal = getCalender(
+        args.username,
+        args.password,
+        args.skip_verification_and_use,
+        args.delay,
+        args.include_todos,
+    )
     with open(args.output, "w", encoding="utf-8") as f:
         logger.info(f"正在写入文件 {args.output}")
         f.write(cal)
