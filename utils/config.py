@@ -1,3 +1,8 @@
+# Based on Xecades/zju-ical-py; original author attribution is retained.
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Local modifications by Ayanami-WU <wumingxuan@zju.edu.cn>:
+# - 2026-11-09: Close configuration files with context managers; add notices.
+
 import glob
 import json
 import os

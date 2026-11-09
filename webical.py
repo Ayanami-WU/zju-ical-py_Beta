@@ -1,3 +1,8 @@
+# Based on Xecades/zju-ical-py; original author attribution is retained.
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Local modifications by Ayanami-WU <wumingxuan@zju.edu.cn>:
+# - 2026-11-09: Keep a fixed default output path for calendar subscriptions; add notices.
+
 import argparse
 import shlex
 import subprocess

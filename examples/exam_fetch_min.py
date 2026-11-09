@@ -1,3 +1,9 @@
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Derived from this project's ZJUAM and exam implementation.
+# Originally added by engine-labs-app[bot] on 2025-11-03.
+# Modified by Ayanami-WU <wumingxuan@zju.edu.cn> on 2026-11-09:
+# formatting and license guidance.
+
 # Minimal exam fetch & ICS export.
 # Requires: pip install requests>=2.32.3
 # Env: export ZJU_USERNAME=... ZJU_PASSWORD=...

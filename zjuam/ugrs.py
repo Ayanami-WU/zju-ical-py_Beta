@@ -1,3 +1,9 @@
+# Based on Xecades/zju-ical-py; original author attribution is retained.
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Local modifications by Ayanami-WU <wumingxuan@zju.edu.cn>:
+# - 2025-12-25: Add response validation, request delays and student information extraction.
+# - 2026-11-09: Integrate configurable delays and strengthen response validation; add notices.
+
 # Undergraduate Students
 import json
 import re

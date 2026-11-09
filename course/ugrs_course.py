@@ -1,3 +1,9 @@
+# Based on Xecades/zju-ical-py; original author attribution is retained.
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Local modifications by Ayanami-WU <wumingxuan@zju.edu.cn>:
+# - 2025-12-25: Handle missing teacher and location fields.
+# - 2026-11-09: Integrate upstream merging and handle absent exam data; add notices.
+
 from loguru import logger
 
 from course.course import Course, CourseTable

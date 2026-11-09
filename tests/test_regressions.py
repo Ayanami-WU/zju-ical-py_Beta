@@ -1,3 +1,6 @@
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Created by Ayanami-WU <wumingxuan@zju.edu.cn> on 2026-11-09.
+
 """离线验证本地定制功能与上游新增功能的组合行为。"""
 
 import contextlib

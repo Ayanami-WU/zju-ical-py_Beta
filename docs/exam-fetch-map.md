@@ -1,5 +1,9 @@
 # Exam Fetch Implementation Map
 
+Licensed under GNU LGPL v2.1; see the repository [LICENSE](../LICENSE).
+
+Originally added by engine-labs-app[bot] on 2025-11-03. License guidance added by Ayanami-WU <wumingxuan@zju.edu.cn> on 2026-11-09.
+
 ## 1. Flow overview
 
 | Step | Module & file | Callable | Responsibility | Next call(s) |

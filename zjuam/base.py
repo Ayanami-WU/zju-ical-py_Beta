@@ -1,3 +1,9 @@
+# Based on Xecades/zju-ical-py; original author attribution is retained.
+# Licensed under GNU LGPL v2.1; see LICENSE at the repository root.
+# Local modifications by Ayanami-WU <wumingxuan@zju.edu.cn>:
+# - 2025-12-25: Add the session User-Agent and student information storage.
+# - 2026-11-09: Integrate upstream request delays and todo support; add notices.
+
 import json
 import time
 from abc import ABC, abstractmethod
