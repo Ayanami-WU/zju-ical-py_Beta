@@ -1,6 +1,10 @@
 # ZJU-ICAL-PY
 
+当前维护仓库：[Ayanami-WU/zju-ical-py_Beta](https://github.com/Ayanami-WU/zju-ical-py_Beta)。
+
 > [!NOTE]
+> 本仓库基于 [Xecades/zju-ical-py](https://github.com/Xecades/zju-ical-py) 继续开发，保留原上游的实现、署名和来源说明。
+>
 > 本项目是基于 [ZJU-ICAL 项目](https://github.com/cxz66666/zju-ical)的 Python 重构版本，更换了调用 API，目前**支持本科生和研究生的课程表**生成。本文档部分参考原项目的 README。
 >
 > 原项目按 LGPL-2.1 协议开源，本项目继承了原项目的协议。
@@ -13,7 +17,7 @@
 - 考试安排，包括考点教室、考试座位（**目前仅支持本科生**）
 
 > [!WARNING]
-> 当前项目仍处于测试阶段，可能存在未知的问题，欢迎提交 Issue 或 Pull Request。
+> 当前项目仍处于测试阶段，可能存在未知的问题，欢迎向[当前维护仓库提交 Pull Request](https://github.com/Ayanami-WU/zju-ical-py_Beta/pulls)。
 
 ## 免责声明
 
@@ -23,7 +27,14 @@
 
 ## 开始使用
 
-首先使用 `git` 将本项目克隆到本地，安装 **3.12** 及以上的 Python 环境（更低版本未经测试），然后使用以下命令安装依赖库：
+首先从当前维护仓库克隆本项目：
+
+```sh
+git clone https://github.com/Ayanami-WU/zju-ical-py_Beta.git
+cd zju-ical-py_Beta
+```
+
+安装 **3.12** 及以上的 Python 环境（更低版本未经测试），然后使用以下命令安装依赖库：
 
 ```sh
 pip install -r requirements.txt
@@ -114,7 +125,7 @@ python webical.py "[传递给zjuical.py的参数]"
 
 ## 贡献代码
 
-欢迎提交 Issue 或 Pull Request！请在贡献代码前，安装 `ruff` 并使用
+欢迎向[当前维护仓库提交 Pull Request](https://github.com/Ayanami-WU/zju-ical-py_Beta/pulls)！请在贡献代码前，安装 `ruff` 并使用
 
 ```sh
 ruff format .
