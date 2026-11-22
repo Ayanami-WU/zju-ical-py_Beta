@@ -1,13 +1,18 @@
 import hmac
 import json
 import re
+import secrets
+import subprocess
+import sys
 import time
+from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from flask import Flask, Response, abort, g, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from server.capture_script import capture_script
 from server.login_bundle import local_login_bundle
 from server.settings import ROOT, Settings
 from server.store import Store, digest
@@ -90,6 +95,8 @@ def create_app(settings=None):
 
     @app.before_request
     def security():
+        if request.path == "/api/local-capture":
+            request.max_content_length = 524288
         g.new_cookie = None
         g.clear_cookie = False
         g.session = None
@@ -172,6 +179,10 @@ def create_app(settings=None):
             headers={"Content-Disposition": 'attachment; filename="zjuical-local-login.zip"'},
         )
 
+    @app.get("/downloads/zjuical-capture.user.js")
+    def download_capture_script():
+        return Response(capture_script(settings.public_url), content_type="application/javascript; charset=utf-8")
+
     def state():
         result = {"csrf": g.session["csrf"], "subscription": None}
         owner = g.session["owner"]
@@ -239,6 +250,51 @@ def create_app(settings=None):
         attach_session(owner)
         return jsonify(state())
 
+    @app.post("/api/local-capture")
+    def upload_capture():
+        limited("capture", 12, 3600)
+        data = request.get_json()
+        if (not isinstance(data, dict) or set(data) != {"capture", "export", "consent"}
+                or data.get("consent") is not True
+                or data.get("export") not in {"all", "courses", "exams"}):
+            raise ValueError("请确认上传并替换课表快照；此模式需要在手机主动更新")
+        owner = g.session["owner"]
+        old = store.get(owner) if owner else None
+        if owner and old is None:
+            abort(401)
+        if not owner:
+            limited("create", 5, 3600)
+        identity = owner or secrets.token_urlsafe(32)
+        now = time.time()
+        modified = datetime.fromtimestamp(now, UTC).strftime("%Y%m%dT%H%M%SZ")
+        payload = {"capture": data.get("capture"), "export": data["export"], "id": identity,
+                   "sequence": int(now), "modified": modified,
+                   "created": datetime.fromtimestamp(old["created"], UTC).strftime("%Y%m%dT%H%M%SZ") if old else modified}
+        try:
+            completed = subprocess.run(
+                [sys.executable, "-m", "server.capture"], input=json.dumps(payload, ensure_ascii=False), text=True,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30, check=True, cwd=ROOT,
+            )
+            result = json.loads(completed.stdout)
+        except (subprocess.SubprocessError, json.JSONDecodeError):
+            raise ValueError("本机采集内容转换失败，已保留原课表，请重新采集") from None
+        calendar = result.get("calendar")
+        if not isinstance(calendar, str) or not calendar.startswith("BEGIN:VCALENDAR"):
+            raise ValueError("采集内容无效或不完整，已保留原课表；请重新采集所选学期")
+        credentials = {"username": result["username"], "kind": "ugrs", "mode": "snapshot"}
+        options = {"config": result["config"], "export": data["export"], "include_todos": False}
+        if old:
+            original = store.decrypt(old["credentials"])
+            if (original["username"], original["kind"]) != (credentials["username"], "ugrs"):
+                raise ValueError("更新时请使用原学号；切换账号请新建订阅")
+            if not store.replace_snapshot(owner, credentials, options, calendar, old["version"]):
+                abort(409)
+            return jsonify(state())
+        owner, key = store.create(credentials, options, owner=identity, calendar=calendar, manual=True)
+        store.drop_session(request.cookies.get(cookie_name, ""))
+        attach_session(owner)
+        return jsonify(**state(), management_key=key), 201
+
     @app.post("/api/settings")
     def update():
         owner = require_owner()
@@ -253,6 +309,8 @@ def create_app(settings=None):
     @app.post("/api/refresh")
     def refresh():
         owner = require_owner()
+        if store.decrypt(store.get(owner)["credentials"])["mode"] == "snapshot":
+            raise ValueError("本机采集订阅没有学校登录会话，请在学校页面重新采集并上传")
         if not store.refresh(owner):
             abort(429, description="每分钟最多手动刷新一次")
         return jsonify(queued=True)

@@ -114,8 +114,9 @@ class Store:
             )
         return True
 
-    def create(self, credentials, options):
-        owner, feed, manage = (secrets.token_urlsafe(32) for _ in range(3))
+    def create(self, credentials, options, *, owner=None, calendar=None, manual=False):
+        owner = owner or secrets.token_urlsafe(32)
+        feed, manage = (secrets.token_urlsafe(32) for _ in range(2))
         now = time.time()
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
@@ -124,8 +125,8 @@ class Store:
                 raise ValueError("服务已达到订阅数量上限")
             db.execute(
                 """INSERT INTO subscriptions
-                   (id, credentials, options, feed_hash, feed_secret, manage_hash, created, due, requested)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (id, credentials, options, feed_hash, feed_secret, manage_hash, created, due, requested, calendar, updated)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     owner,
                     self.encrypt(credentials),
@@ -134,8 +135,10 @@ class Store:
                     self.encrypt(feed),
                     digest(manage),
                     now,
+                    1e30 if manual else now,
                     now,
-                    now,
+                    self.encrypt(calendar) if calendar is not None else None,
+                    now if calendar is not None else None,
                 ),
             )
         return owner, manage
@@ -171,6 +174,17 @@ class Store:
             cursor = db.execute(
                 "UPDATE subscriptions SET due=?, requested=? WHERE id=? AND requested<=?",
                 (now, now, owner, now - 60),
+            )
+            return cursor.rowcount == 1
+
+    def replace_snapshot(self, owner, credentials, options, calendar, version):
+        now = time.time()
+        with self.connection() as db:
+            cursor = db.execute(
+                """UPDATE subscriptions SET credentials=?, options=?, calendar=?, updated=?,
+                   due=1e30, requested=?, version=version+1, failures=0, error='', lease=NULL, lease_until=0
+                   WHERE id=? AND version=?""",
+                (self.encrypt(credentials), json.dumps(options), self.encrypt(calendar), now, now, owner, version),
             )
             return cursor.rowcount == 1
 
