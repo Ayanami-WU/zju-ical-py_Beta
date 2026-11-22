@@ -138,6 +138,7 @@ class ExamTable:
                             description=exam.description + desc_tail,
                             start=exam.start,
                             end=exam.end,
+                            identity=f"exam:{exam.classId}:{exam.examType.value}",
                         )
                     )
         except Exception as e:

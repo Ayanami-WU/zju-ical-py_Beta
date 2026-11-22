@@ -1,0 +1,16 @@
+.git
+.venv
+.idea
+.codex
+.agents
+.secrets
+.env
+.env.*
+__pycache__
+**/__pycache__
+.ruff_cache
+*.ics
+*.local*
+tests
+tools
+.DS_Store

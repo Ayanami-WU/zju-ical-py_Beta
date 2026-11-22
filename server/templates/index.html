@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="将浙大课程与考试安排同步到你的日历。">
+  <title>ZJU Calendar · 课表订阅</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="/"><span class="brand-icon">▦</span> ZJU Calendar</a><span class="tag">课表，随时同步</span></header>
+  <main>
+    <section class="intro"><p class="eyebrow">YOUR SCHEDULE, IN SYNC</p><h1>课表有变，<br>日历跟上。</h1><p>把课程与考试安排带到 Apple 日历、Outlook<br class="desktop"> 或其他支持 iCalendar 订阅的应用里。</p><div class="benefits"><span>↻ 定时更新</span><span>⌑ 私人订阅链接</span><span>✓ 无需重复导入</span></div><div class="mini-calendar" aria-hidden="true"><div class="mini-heading">一周，从容安排 <span>WEEK VIEW</span></div><div class="mini-days"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span></div><div class="mini-grid"><i>08:00</i><b class="block one">大学物理<br><small>西2-217</small></b><b class="block two">工程力学</b><b class="block three">材料力学实验</b><b class="block four">大学物理</b><i>13:25</i><b class="block five">大学物理实验</b><b class="block six">概率论与<br>数理统计</b></div><p class="mini-note">示意课表 · 实际安排以教务系统为准</p></div></section>
+    <section class="workspace">
+      <div id="notice" role="status" aria-live="polite" hidden></div>
+      <div id="loading" class="card"><p>正在连接你的日历…</p></div>
+      <div id="setup" class="card" hidden>
+        <p class="eyebrow">GET STARTED</p><h2 id="form-title">创建你的课表订阅</h2><p class="muted">连接教务系统，获取专属订阅链接。</p>
+        <form id="setup-form">
+          <label>学生类型<select id="kind" name="kind"><option value="ugrs">本科生</option><option value="grs">研究生</option></select></label>
+          <div class="help"><a id="official-login" href="https://zjuam.zju.edu.cn/cas/login?service=https%3A%2F%2Fzdbk.zju.edu.cn%2Fjwglxt%2Fxtgl%2Flogin_ssologin.html" target="_blank" rel="noopener noreferrer">① 前往浙大官方页面登录 ↗</a><p>密码只输入学校页面。本服务不接收统一认证密码或全局 SSO Cookie。</p></div>
+          <label>学号<input id="username" name="username" autocomplete="username" inputmode="numeric" pattern="[0-9]{5,20}" maxlength="20" placeholder="你的浙大学号" required></label>
+          <label><span id="secret-label">② 本科教务 JSESSIONID（路径 /jwglxt）</span><input id="secret" name="secret" type="password" autocomplete="off" maxlength="4096" required></label>
+          <label id="root-session-field">JSESSIONID（路径 /，若存在）<input id="root-session" name="root_session" type="password" autocomplete="off" maxlength="4096" placeholder="同域名下路径为 / 的另一条 JSESSIONID"></label>
+          <label id="teaching-token-field">教务 JSESSIONTOKEN（若存在）<input id="teaching-token" name="teaching_token" type="password" autocomplete="off" maxlength="4096" placeholder="仅限 zdbk.zju.edu.cn 的教务 Token"></label>
+          <label id="route-field">本科教务 route（可选）<input id="route" name="route" type="password" autocomplete="off" maxlength="512" placeholder="同一浏览器、同一教务域名下的 route Cookie"></label>
+          <div id="token-help" class="help"></div>
+          <label>学期<select id="config" name="config"><option value="config.json">当前学期</option></select></label>
+          <label>订阅内容<select id="export" name="export"><option value="all">课程与考试</option><option value="courses">仅课程</option><option value="exams">仅考试</option></select></label>
+          <p id="graduate-note" class="help" hidden>研究生考试接口尚未适配，目前仅能订阅课程。</p>
+          <label class="consent"><input id="consent" type="checkbox" required><span>同意服务加密保存教务系统会话，用于定时更新。会话仍具有该系统的账户权限，过期后需重新提供；可随时删除。</span></label>
+          <button id="submit" class="primary" type="submit">创建订阅 <span>↗</span></button>
+          <button id="cancel-edit" class="secondary" type="button" hidden>取消修改</button>
+        </form>
+        <div id="recovery-entry" class="card-footer">已有订阅？<button id="show-login" class="text-button">用管理密钥找回 →</button></div>
+      </div>
+      <div id="login" class="card" hidden><p class="eyebrow">WELCOME BACK</p><h2>管理已有订阅</h2><p class="muted">输入创建时保存的管理密钥。订阅链接只能读取课表，不能用于管理。</p><form id="login-form"><label>管理密钥<input id="management-input" type="password" autocomplete="off" required maxlength="43"></label><button class="primary" type="submit">继续管理 →</button></form><button id="back-setup" class="text-button">← 创建新订阅</button></div>
+      <div id="dashboard" hidden>
+        <div class="card">
+          <div class="card-heading"><div><p class="eyebrow">YOUR CALENDAR</p><h2>我的课表订阅</h2></div><span id="status-badge" class="badge">等待同步</span></div>
+          <p id="account" class="muted"></p><p id="sync-status" class="help"></p>
+          <label>私人订阅链接<div class="copy-field"><input id="feed-url" readonly autocomplete="off" aria-label="私人订阅链接"><button id="copy-url" type="button">复制</button></div></label>
+          <a id="apple-link" class="primary button" href="#">在日历 App 中订阅 ↗</a>
+          <p class="help">请使用“添加订阅日历”，无需反复导入文件。订阅链接相当于课表的只读钥匙，请勿公开分享。</p>
+          <div id="key-box" class="key-box" hidden><strong>请保存管理密钥</strong><p>仅在创建或重置时显示。换设备或退出后，用它管理订阅；请与订阅链接分开保存。</p><div class="copy-field"><input id="management-key" readonly aria-label="管理密钥"><button id="copy-key" type="button">复制</button></div><label class="consent"><input id="saved-key" type="checkbox"><span>我已妥善保存管理密钥</span></label></div>
+          <div class="actions"><button id="refresh" class="secondary">立即刷新</button><button id="edit" class="secondary">更新凭据 / 设置</button></div>
+        </div>
+        <details class="card management"><summary>订阅管理 <span>↗</span></summary><p class="help">重置链接后，旧链接立即失效，需要在日历 App 中重新订阅。</p><div class="actions"><button id="rotate" class="secondary">重置订阅链接</button><button id="rotate-management" class="secondary">重置管理密钥</button></div><div class="danger-row"><button id="logout" class="text-button">退出管理</button><button id="delete" class="text-button danger">删除订阅与保存的数据</button></div></details>
+      </div>
+      <p class="footnote">ZJU Calendar 是独立开源工具，非学校官方服务。<br>课程及考试安排请以学校最新通知为准。</p>
+    </section>
+  </main>
+  <footer><span>ZJU-ICAL-PY</span><span>把时间留给更重要的事。</span></footer>
+</body>
+</html>

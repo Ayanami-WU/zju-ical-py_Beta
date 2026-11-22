@@ -205,6 +205,7 @@ class CourseTable(ABC, Generic[T]):
                             description=description,
                             start=course.getStartDateTime(actualDate),
                             end=course.getEndDateTime(actualDate),
+                            identity=f"course:{course.classId}:{dateOfClass:%Y%m%d}:{course.start}",
                         )
                     )
         except Exception as e:

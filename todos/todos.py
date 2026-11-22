@@ -11,6 +11,7 @@ class Todo:
     course_code: str
     title: str
     end_time: str
+    source_id: str = ""
 
     def toEvent(self, exams: ExamTable) -> Event:
         end_dt = datetime.fromisoformat(self.end_time.replace("Z", "+00:00"))
@@ -27,6 +28,7 @@ class Todo:
             description=description,
             start=end_dt_local,
             end=None,
+            identity=f"todo:{self.course_code}:{self.source_id or self.title}",
         )
 
 
@@ -46,6 +48,7 @@ class TodoTable:
                 course_code=item["course_code"],
                 title=item["title"],
                 end_time=item["end_time"],
+                source_id=str(item.get("id") or ""),
             )
             self.todos.append(todo)
 

@@ -1,0 +1,70 @@
+x-common: &common
+  build: .
+  image: zjuical-service:local
+  restart: unless-stopped
+  user: "10001:10001"
+  read_only: true
+  tmpfs:
+    - /tmp:size=32m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 384m
+  environment:
+    PUBLIC_URL: ${PUBLIC_URL:-https://calendar.example.com}
+    COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    SYNC_INTERVAL: ${SYNC_INTERVAL:-3600}
+    SYNC_TIMEOUT: ${SYNC_TIMEOUT:-180}
+    MAX_SUBSCRIPTIONS: ${MAX_SUBSCRIPTIONS:-1000}
+    TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
+    ZJUICAL_KEY_FILE: /run/secrets/zjuical_key
+    ZJUICAL_DATA_DIR: /data
+    TZ: Asia/Shanghai
+  secrets: [zjuical_key]
+  volumes:
+    - calendar-data:/data
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  web:
+    <<: *common
+    ports: ["127.0.0.1:${PORT:-5273}:5273"]
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5273/healthz', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+  worker:
+    <<: *common
+    command: [python, -m, server.worker]
+    depends_on:
+      web:
+        condition: service_healthy
+  caddy:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-calendar.example.com}
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+secrets:
+  zjuical_key:
+    file: ./.secrets/zjuical.key
+
+volumes:
+  calendar-data:
+  caddy-data:
+  caddy-config:

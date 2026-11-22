@@ -1,0 +1,6 @@
+-r requirements.txt
+Flask>=3.1.2,<4
+requests>=2.32.5,<3
+waitress>=3.0.2,<4
+cryptography>=46.0.3,<48
+icalendar>=6.3.2,<8

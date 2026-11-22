@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from hashlib import sha1
+from hashlib import sha1, sha256
 
 from loguru import logger
 
@@ -14,9 +14,12 @@ class Event:
     description: str
     start: datetime
     end: datetime | None = None
+    identity: str = ""
 
     @property
     def uid(self) -> str:
+        if self.identity:
+            return sha256(self.identity.encode()).hexdigest() + "@zjuical"
         m = sha1()
         m.update(self.description.encode())
         m.update(self.summary.encode())
