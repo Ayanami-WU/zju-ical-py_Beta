@@ -54,3 +54,21 @@ Web 仅绑定业务 IP `172.26.20.3:15273`，worker 不发布端口；上级网�
 升级前保留旧摘要及匹配的状态备份；将两份 Compose 的镜像同时替换为新摘要，先更新 Web 并等待健康，再更新 worker。不要使用 `down -v`、`--remove-orphans`，不要删除共用数据。回滚时恢复两份 Compose 的旧摘要并重新 `up -d`；若未来引入不兼容的数据库迁移，先停两个进程并恢复配对的数据/密钥备份。本次不变更现有服务数据库格式。
 
 撤下预生产时，先撤销 Axiops 的 external 路由，再分别停止这两个服务；保留数据和主密钥。删除数据、密钥或备份需要另行明确操作。
+
+## 2026-11-22 部署验证
+
+已部署 koala3 预生产，入口为 [课表订阅管理页](https://ical.koala-studio.org.cn)。应用源码提交为 `f6edc93a10016d9c9ff7ac3cc30d6af7b723219a`，实际镜像为：
+
+```text
+registry.koala-studio.org.cn/depart-software/deploy-manifests/zjuical@sha256:185eec88580b294f2366cf9c6e8defda3f806b8d4291986d9de7a2f206a36a1d
+```
+
+宿主启动文件位于 `/home/koala/zjuical-preproduction-deploy/`。[部署 MR 42](https://git.koala-studio.org.cn/depart-software/deploy-manifests/-/merge_requests/42) 已合并，[主分支流水线 5220](https://git.koala-studio.org.cn/depart-software/deploy-manifests/-/pipelines/5220) 的声明校验和 Axiops 期望状态投递均成功。实际动态配置已生成该域名到 `172.26.20.3:15273` 的路由。
+
+- 本机与实际 Linux amd64 镜像各通过 67 项应用测试；镜像测试全程断网。
+- 部署仓库通过 33 项测试，以及 stateful、resource 和 host 声明校验。
+- 公网 HTTPS 页面、健康检查、Secure/HttpOnly/SameSite Cookie 和 CSRF 校验通过。
+- 临时虚拟订阅首次未同步时返回 503；写入缓存后可读取，保持 UID 将 A 更新为 B 后返回单个 B，ETag 改变；未变化请求返回 304，HEAD 无响应正文。
+- Web 重启后缓存、订阅 URL 和管理会话保留；删除临时订阅后原 URL 返回 404。
+
+测试期间暂停新实例的 worker，未向学校发送虚拟凭据；测试记录已删除，worker 已恢复。此项验证覆盖 HTTPS 服务端订阅行为，未在 Apple 日历中重新添加该公网订阅，也尚未在预生产使用真实学校会话。本机 Docker 与原 Apple 日历订阅保持运行。
