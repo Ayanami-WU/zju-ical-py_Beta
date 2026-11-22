@@ -7,7 +7,7 @@
   <meta name="description" content="将浙大课程与考试安排同步到你的日历。">
   <title>ZJU Calendar · 课表订阅</title>
   <link rel="stylesheet" href="/static/app.css">
-  <script defer src="/static/app.js"></script>
+  <script type="module" src="/static/app.js"></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="/"><span class="brand-icon">▦</span> ZJU Calendar</a><span class="tag">课表，随时同步</span></header>
@@ -20,7 +20,9 @@
         <p class="eyebrow">GET STARTED</p><h2 id="form-title">创建你的课表订阅</h2><p class="muted">连接教务系统，获取专属订阅链接。</p>
         <form id="setup-form">
           <label>学生类型<select id="kind" name="kind"><option value="ugrs">本科生</option><option value="grs">研究生</option></select></label>
-          <div class="help"><a id="official-login" href="https://zjuam.zju.edu.cn/cas/login?service=https%3A%2F%2Fzdbk.zju.edu.cn%2Fjwglxt%2Fxtgl%2Flogin_ssologin.html" target="_blank" rel="noopener noreferrer">① 前往浙大官方页面登录 ↗</a><p>密码只输入学校页面。本服务不接收统一认证密码或全局 SSO Cookie。</p></div>
+          <details class="help mobile-login" open><summary>手机登录：一次导入会话（本科）</summary><p>无需开发者工具或电脑。安装开源 Cookie-Editor：<a href="https://apps.apple.com/app/id6446215341" target="_blank" rel="noopener noreferrer">iPhone / iPad Safari</a> · <a href="https://addons.mozilla.org/firefox/addon/cookie-editor/" target="_blank" rel="noopener noreferrer">Android Firefox</a>。仅授权它访问 zdbk.zju.edu.cn。</p><ol><li>通过下方学校官方登录入口登录，进入本科教务页面。</li><li>在教务页打开 Cookie-Editor，选择导出 JSON 并复制。</li><li>回到这里粘贴并读取，填写学号后创建订阅。</li></ol><label>粘贴 Cookie-Editor JSON<textarea id="cookies-json" rows="3" maxlength="131072" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="粘贴当前本科教务页导出的 JSON"></textarea></label><button id="import-cookies" type="button" class="secondary">读取并填写会话</button><p>只在本机读取域名和路径匹配的教务会话；其余 Cookie（包括全局 SSO）会丢弃。点击创建订阅前不会上传。原始导出内容不会保存。研究生仍请提供系统 X-Access-Token。</p></details>
+          <details class="help"><summary>用本机账号密码获取会话</summary><p>在本机助手中输入账号密码，只向学校认证。下载并解压后，按包内“使用说明.txt”运行；需要 Python 3.12 或更高版本。</p><p><a href="/downloads/local-login.zip" download>下载本机登录助手</a></p><p>密码不回显、不写入会话文件，也不会上传至本站。学校要求验证码或二次认证时，可使用下方官方登录方式。</p><label>导入本机会话文件<input id="session-file" type="file" accept=".json,application/json"></label><p>文件在本机读取，仅填入下方表单。检查学号、选择学期并同意保存后，点击“创建订阅”才上传教务会话。导入后可自行删除本机会话文件。</p></details>
+          <div class="help"><a id="official-login" href="https://zjuam.zju.edu.cn/cas/login?service=https%3A%2F%2Fzdbk.zju.edu.cn%2Fjwglxt%2Fxtgl%2Flogin_ssologin.html" target="_blank" rel="noopener noreferrer">① 前往浙大官方页面登录 ↗</a><p>密码仅在学校官方页面或本机助手输入。本服务不接收统一认证密码或全局 SSO Cookie。</p></div>
           <label>学号<input id="username" name="username" autocomplete="username" inputmode="numeric" pattern="[0-9]{5,20}" maxlength="20" placeholder="你的浙大学号" required></label>
           <label><span id="secret-label">② 本科教务 JSESSIONID（路径 /jwglxt）</span><input id="secret" name="secret" type="password" autocomplete="off" maxlength="4096" required></label>
           <label id="root-session-field">JSESSIONID（路径 /，若存在）<input id="root-session" name="root_session" type="password" autocomplete="off" maxlength="4096" placeholder="同域名下路径为 / 的另一条 JSESSIONID"></label>

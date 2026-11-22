@@ -20,7 +20,9 @@
 
 新增独立的 Web 管理页与后台刷新 worker。用户在学校官方页面登录后，按路径提供本科教务 `JSESSIONID` 和教务 `JSESSIONTOKEN`，或研究生 `X-Access-Token`，即可获取独立的私人订阅 URL；**服务不接收统一认证密码或全局 SSO Cookie**。本科节点 Cookie 可在首次成功查询后自动学习并加密保存。支持定时更新、链接撤销/重置、管理密钥找回和删除数据；原 CLI 与单用户 `webical.py` 保留。
 
-部署步骤及会话获取方式见 [Docker 服务文档](docs/docker-service.md)。学校会话过期后需要重新提供，研究生考试与服务版待办暂不支持。
+网页也提供本机账号密码助手：密码仅用于本机向学校认证，生成教务专用会话文件后在网页导入。部署步骤及会话获取方式见 [Docker 服务文档](docs/docker-service.md)。学校会话过期后需要重新提供，研究生考试与服务版待办暂不支持。
+
+手机本科用户可在 iOS Safari 或 Android Firefox 使用开源 Cookie-Editor，一次导出 JSON 后在网页本机筛选并填写会话，无需逐条复制 Cookie 或使用开发者工具。
 
 koala3 预生产采用独立 Compose + Axiops external 端点，由现有 Traefik 提供 HTTPS，见 [external 部署文档](docs/external-deployment.md)。
 

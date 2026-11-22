@@ -8,6 +8,7 @@ from flask import Flask, Response, abort, g, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from server.login_bundle import local_login_bundle
 from server.settings import ROOT, Settings
 from server.store import Store, digest
 
@@ -163,6 +164,13 @@ def create_app(settings=None):
         with store.connection() as db:
             db.execute("SELECT 1")
         return jsonify(status="ok")
+
+    @app.get("/downloads/local-login.zip")
+    def download_local_login():
+        return Response(
+            local_login_bundle(), content_type="application/zip",
+            headers={"Content-Disposition": 'attachment; filename="zjuical-local-login.zip"'},
+        )
 
     def state():
         result = {"csrf": g.session["csrf"], "subscription": None}

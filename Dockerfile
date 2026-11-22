@@ -15,7 +15,7 @@ COPY utils utils
 COPY zjuam zjuam
 COPY server server
 COPY configs configs
-COPY LICENSE README.md ./
+COPY LICENSE README.md requirements-login.txt ./
 USER 10001:10001
 EXPOSE 5273
 CMD ["python", "-m", "server"]

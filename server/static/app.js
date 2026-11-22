@@ -1,4 +1,5 @@
 "use strict";
+import {parseTeachingSession} from "./session-import.mjs";
 const $ = (id) => document.getElementById(id);
 let csrf = "", current = null, editing = false, pendingKey = false;
 function show(id, visible) { $(id).hidden = !visible; }
@@ -62,6 +63,29 @@ async function action(work) {
   finally { buttons.forEach((button) => { button.disabled = false; }); }
 }
 $("kind").addEventListener("change", modeHelp);
+function importSession(text) {
+  const data = parseTeachingSession(text);
+  $("kind").value = data.kind; modeHelp();
+  if (data.username) $("username").value = data.username;
+  $("secret").value = data.secret;
+  $("root-session").value = data.root_session || "";
+  $("teaching-token").value = data.teaching_token || "";
+  $("route").value = data.route || "";
+  $("consent").checked = false;
+  notify("已在本机筛选并填写教务会话，尚未上传。请填写或检查学号和订阅设置，再同意保存并提交。");
+}
+$("session-file").addEventListener("change", () => action(async () => {
+  const file = $("session-file").files[0];
+  if (!file) return;
+  try {
+    if (file.size > 131072) throw new Error("会话文件过大，请只导出当前教务网站的 JSON。");
+    importSession(await file.text());
+  } finally { $("session-file").value = ""; }
+}));
+$("import-cookies").onclick = () => action(async () => {
+  try { importSession($("cookies-json").value); }
+  finally { $("cookies-json").value = ""; }
+});
 $("setup-form").addEventListener("submit", (event) => {
   event.preventDefault();
   action(async () => {

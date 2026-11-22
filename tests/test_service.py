@@ -101,6 +101,17 @@ class ServiceTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 403)
 
+    def test_public_local_login_download_contains_no_installation_secrets(self):
+        import io
+        import zipfile
+
+        response = self.client.get("/downloads/local-login.zip", base_url=ORIGIN)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content_type, "application/zip")
+        with zipfile.ZipFile(io.BytesIO(response.data)) as bundle:
+            self.assertIn("server/school_login.py", bundle.namelist())
+            self.assertFalse(any(name.startswith(".secrets/") for name in bundle.namelist()))
+
     def test_credentials_cache_and_secret_tokens_are_not_plaintext(self):
         created = self.create()
         content = calendar_text()
