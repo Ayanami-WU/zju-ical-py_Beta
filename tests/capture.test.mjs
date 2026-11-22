@@ -38,7 +38,8 @@ async function runCapture({failExam = false, switchAccount = false} = {}) {
     setTimeout: (fn, ms) => { if (ms < 20000) queueMicrotask(fn); return {}; }, clearTimeout() {},
     fetch: async (url, options) => {
       requests.push({url, options});
-      assert(url.startsWith("/jwglxt/"));
+      assert.equal(new URL(url).origin, "https://zdbk.zju.edu.cn");
+      assert(new URL(url).pathname.startsWith("/jwglxt/"));
       assert.equal(options.credentials, "same-origin");
       assert.equal(options.redirect, "error");
       assert(options.referrer.startsWith("https://zdbk.zju.edu.cn/jwglxt/"));

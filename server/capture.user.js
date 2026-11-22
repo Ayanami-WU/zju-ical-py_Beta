@@ -6,6 +6,8 @@
 // @description  在本科教务页面采集课表；不读取 Cookie、密码，不自动上传
 // @match        https://zdbk.zju.edu.cn/jwglxt/*
 // @grant        none
+// @inject-into  page
+// @noframes
 // @run-at       document-idle
 // ==/UserScript==
 (() => {
@@ -40,7 +42,7 @@
   async function query(path, values, referrer) {
     const controller = new AbortController(); const timer = setTimeout(() => controller.abort(), 25000);
     try {
-      const response = await fetch(path, {method: "POST", credentials: "same-origin", redirect: "error", cache: "no-store", signal: controller.signal,
+      const response = await fetch(new URL(path, location.origin).href, {method: "POST", credentials: "same-origin", redirect: "error", cache: "no-store", signal: controller.signal,
         referrer: new URL(referrer, location.origin).href,
         headers: {"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", "X-Requested-With": "XMLHttpRequest", "Accept": "application/json"}, body: new URLSearchParams(values)});
       if (!response.ok) throw new Error("学校未接受当前登录，请重新打开官方课表页登录。");
