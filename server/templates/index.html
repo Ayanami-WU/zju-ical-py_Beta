@@ -58,6 +58,20 @@
           <div id="key-box" class="key-box" hidden><strong>请保存管理密钥</strong><p>仅在创建或重置时显示。换设备或退出后，用它管理订阅；请与订阅链接分开保存。</p><div class="copy-field"><input id="management-key" readonly aria-label="管理密钥"><button id="copy-key" type="button">复制</button></div><label class="consent"><input id="saved-key" type="checkbox"><span>我已妥善保存管理密钥</span></label></div>
           <div class="actions"><button id="refresh" class="secondary">立即刷新</button><button id="edit" class="secondary">更新凭据 / 设置</button></div>
         </div>
+        <section class="card ics-card" aria-labelledby="ics-heading">
+          <h2 id="ics-heading">自定义日历</h2>
+          <p class="muted">上传 ICS 文件或添加托管链接，与课表合并到上方原订阅。更新课表不会覆盖这些来源。</p>
+          <div id="ics-sources" aria-live="polite"></div>
+          <h3 id="ics-form-title">添加 ICS 来源</h3>
+          <form id="ics-form">
+            <label>来源名称<input id="ics-name" required maxlength="80" placeholder="例如：实验安排、个人计划" autocomplete="off"></label>
+            <label>来源方式<select id="ics-kind"><option value="upload">上传 ICS 文件</option><option value="url">添加托管 ICS 链接</option></select></label>
+            <label id="ics-file-field">选择文件<input id="ics-file" type="file" accept=".ics,text/calendar" required><span class="help">UTF-8 编码的 .ics 文件，最大 512 KiB。以后在下方点“替换文件”更新同一来源。</span></label>
+            <label id="ics-url-field" hidden>ICS 链接<input id="ics-url" type="url" maxlength="2048" placeholder="https://example.com/calendar.ics" autocomplete="off" autocapitalize="off" spellcheck="false"><span class="help">公网 HTTPS 链接（443 端口）；后台定时更新，失败时保留上次内容。链接可能含读取密钥，请妥善保管。</span></label>
+            <div class="actions"><button id="ics-save" class="primary" type="submit">添加并合并</button><button id="ics-cancel" class="secondary" type="button" hidden>取消替换</button></div>
+          </form>
+          <p class="help">最多添加 10 个来源。替换已有来源会保留事件身份；删除来源会从订阅移除其事件。所有操作均保留原订阅链接。</p>
+        </section>
         <details class="card management"><summary>订阅管理 <span>↗</span></summary><p class="help">重置链接后，旧链接立即失效，需要在日历 App 中重新订阅。</p><div class="actions"><button id="rotate" class="secondary">重置订阅链接</button><button id="rotate-management" class="secondary">重置管理密钥</button></div><div class="danger-row"><button id="logout" class="text-button">退出管理</button><button id="delete" class="text-button danger">删除订阅与保存的数据</button></div></details>
       </div>
       <p class="footnote">ZJU Calendar 是独立开源工具，非学校官方服务。<br>课程及考试安排请以学校最新通知为准。</p>

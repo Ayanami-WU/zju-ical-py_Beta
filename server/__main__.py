@@ -12,6 +12,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=5273,
         threads=4,
-        max_request_body_size=524288,
+        max_request_body_size=2097152,
         clear_untrusted_proxy_headers=not bool(app.extensions["settings"].proxy_hops),
     )

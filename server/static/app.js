@@ -2,7 +2,7 @@
 import {parseTeachingSession} from "./session-import.mjs";
 import {parseLocalCapture} from "./capture-core.mjs";
 const $ = (id) => document.getElementById(id);
-let csrf = "", current = null, editing = false, pendingKey = false;
+let csrf = "", current = null, editing = false, pendingKey = false, editingICS = null, busy = false, lastSources = "";
 function show(id, visible) { $(id).hidden = !visible; }
 function notify(message) { $("notice").textContent = message; show("notice", Boolean(message)); }
 async function api(path, data) {
@@ -75,6 +75,7 @@ function render(result) {
     ? `${messages[current.error] || "更新失败。"}${current.ready ? " 仍可订阅上次成功的课表。" : ""}${current.paused ? " 连续失败后已暂停自动重试。" : ""}`
     : current.updated ? `上次成功更新：${new Date(current.updated * 1000).toLocaleString("zh-CN")}。课表将定时同步。` : "正在排队获取课表。首次成功后，即可在日历 App 中订阅。";
   if (current.mode === "snapshot") $("sync-status").textContent = `上次上传：${new Date(current.updated * 1000).toLocaleString("zh-CN")}。更新时请在学校页面重新采集，再向原订阅上传；云端不会自动访问学校。`;
+  renderICSSources(current.sources || []);
   if (result.management_key) {
     $("management-key").value = result.management_key;
     $("saved-key").checked = false;
@@ -82,12 +83,92 @@ function render(result) {
   }
 }
 async function action(work) {
+  if (busy) return;
+  busy = true;
   notify("");
   const buttons = [...document.querySelectorAll("button")];
   buttons.forEach((button) => { button.disabled = true; });
   try { await work(); } catch (error) { notify(error.message); }
-  finally { buttons.forEach((button) => { button.disabled = false; }); }
+  finally { busy = false; document.querySelectorAll("button").forEach((button) => { button.disabled = false; }); }
 }
+
+function icsKindHelp() {
+  const upload = $("ics-kind").value === "upload";
+  show("ics-file-field", upload); show("ics-url-field", !upload);
+  $("ics-file").required = upload; $("ics-url").required = !upload;
+  $("ics-file").disabled = !upload; $("ics-url").disabled = upload;
+}
+function resetICSForm() {
+  editingICS = null; $("ics-form").reset(); $("ics-kind").disabled = false;
+  $("ics-form-title").textContent = "添加 ICS 来源"; $("ics-save").textContent = "添加并合并";
+  show("ics-cancel", false); icsKindHelp();
+}
+function editICSSource(source) {
+  resetICSForm(); editingICS = source.id;
+  $("ics-name").value = source.name; $("ics-kind").value = source.kind; $("ics-kind").disabled = true;
+  $("ics-form-title").textContent = `替换来源：${source.name}`;
+  $("ics-save").textContent = source.kind === "upload" ? "上传并替换文件" : "保存并拉取新链接";
+  show("ics-cancel", true); icsKindHelp(); $("ics-name").focus();
+}
+function renderICSSources(sources) {
+  const signature = JSON.stringify(sources);
+  if (signature === lastSources) return;
+  lastSources = signature;
+  $("ics-sources").replaceChildren();
+  if (!sources.length) {
+    const empty = document.createElement("p"); empty.className = "muted"; empty.textContent = "还没有自定义来源。";
+    $("ics-sources").append(empty); return;
+  }
+  const errors = {unsafe_url: "链接指向不支持的地址，请更换公网 HTTPS 链接。", invalid_ics: "远程内容不是有效 ICS 或超过大小限制。", timeout: "拉取超时，将稍后重试。", source_unavailable: "暂时无法拉取来源，将稍后重试。"};
+  for (const source of sources) {
+    const row = document.createElement("article"); row.className = "ics-source";
+    const title = document.createElement("h3"); title.textContent = source.name; row.append(title);
+    const status = document.createElement("p"); status.className = "help";
+    const type = source.kind === "upload" ? "上传文件" : `托管链接 · ${source.host}`;
+    const state = source.syncing ? "正在拉取" : source.queued ? "等待拉取" : source.error ? (errors[source.error] || "更新失败。") : "已合并";
+    status.textContent = `${type} · ${state}${source.error && source.ready ? " 已保留上次内容。" : ""}`;
+    row.append(status);
+    if (source.updated) {
+      const time = document.createElement("p"); time.className = "help";
+      time.textContent = `内容更新：${new Date(source.updated * 1000).toLocaleString("zh-CN")}`; row.append(time);
+    }
+    const actions = document.createElement("div"); actions.className = "actions";
+    const replace = document.createElement("button"); replace.type = "button"; replace.className = "secondary";
+    replace.textContent = source.kind === "upload" ? "替换文件" : "替换链接";
+    replace.onclick = () => editICSSource(source); actions.append(replace);
+    if (source.kind === "url") {
+      const refresh = document.createElement("button"); refresh.type = "button"; refresh.className = "secondary";
+      refresh.textContent = "刷新来源";
+      refresh.onclick = () => action(async () => { render(await api(`sources/${source.id}/refresh`, {})); notify("已加入拉取队列，订阅链接保持不变。"); });
+      actions.append(refresh);
+    }
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "text-button danger"; remove.textContent = "删除来源";
+    remove.onclick = () => {
+      if (confirm(`删除“${source.name}”后，其日程会从原订阅移除。确认删除？`)) action(async () => {
+        render(await api(`sources/${source.id}/delete`, {}));
+        if (editingICS === source.id) resetICSForm(); notify("来源已删除，日历 App 刷新后生效。");
+      });
+    };
+    actions.append(remove); row.append(actions); $("ics-sources").append(row);
+  }
+}
+$("ics-kind").onchange = icsKindHelp;
+$("ics-cancel").onclick = resetICSForm;
+$("ics-file").onchange = () => { if (!$("ics-name").value.trim() && $("ics-file").files[0]) $("ics-name").value = $("ics-file").files[0].name.replace(/\.ics$/i, "").slice(0, 80); };
+$("ics-form").onsubmit = (event) => {
+  event.preventDefault(); action(async () => {
+    const kind = $("ics-kind").value;
+    const data = {kind, name: $("ics-name").value.trim(), ...(editingICS ? {id: editingICS} : {})};
+    if (kind === "upload") {
+      const file = $("ics-file").files[0];
+      if (!file || file.size > 524288) throw new Error("请选择最大 512 KiB 的 ICS 文件。");
+      try { data.content = new TextDecoder("utf-8", {fatal: true}).decode(await file.arrayBuffer()); }
+      catch { throw new Error("请将 ICS 文件保存为 UTF-8 编码后重新上传。"); }
+    } else { data.url = $("ics-url").value.trim(); }
+    render(await api("sources", data)); resetICSForm();
+    notify(kind === "upload" ? "ICS 已合并到原订阅，日历 App 刷新后可见。" : "链接已保存，正在排队拉取；原订阅链接保持不变。");
+  });
+};
 $("kind").addEventListener("change", modeHelp);
 function importSession(text) {
   const data = parseTeachingSession(text);
@@ -175,7 +256,7 @@ async function bootstrap() {
   } catch (error) { show("loading", false); notify(error.message); }
 }
 setInterval(async () => {
-  if (current && !editing && document.visibilityState === "visible") {
+  if (current && !editing && !busy && document.visibilityState === "visible") {
     try { render(await api("session")); } catch (error) { notify(error.message); }
   }
 }, 10000);

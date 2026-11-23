@@ -5,6 +5,7 @@ import sys
 import time
 from datetime import UTC, datetime
 
+from server.ics_sources import SOURCE_ERRORS, SourceError, normalize_ics
 from server.settings import ROOT, Settings
 from server.store import Store
 
@@ -54,11 +55,38 @@ def main():
     store = Store(Settings.from_env())
     while True:
         try:
-            if not run_once(store):
+            source_work = run_source_once(store)
+            school_work = run_once(store)
+            if not source_work and not school_work:
                 time.sleep(3)
         except Exception as error:
             print(f"Worker error: {type(error).__name__}", flush=True)
             time.sleep(5)
+
+
+def run_source_once(store):
+    job = store.claim_source()
+    if job is None:
+        return False
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-m", "server.ics_sources"],
+            input=json.dumps({"url": store.decrypt(job["url"])}), text=True,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=40, check=True, cwd=ROOT,
+        )
+        result = json.loads(completed.stdout)
+        if isinstance(result.get("calendar"), str):
+            store.finish_source(job, calendar=normalize_ics(result["calendar"]))
+        else:
+            error = result.get("error")
+            store.finish_source(job, error=error if error in SOURCE_ERRORS else "source_unavailable")
+    except subprocess.TimeoutExpired:
+        store.finish_source(job, error="timeout")
+    except SourceError as error:
+        store.finish_source(job, error=error.code)
+    except Exception:
+        store.finish_source(job, error="source_unavailable")
+    return True
 
 
 if __name__ == "__main__":

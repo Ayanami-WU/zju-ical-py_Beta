@@ -13,6 +13,7 @@ from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from server.capture_script import capture_script
+from server.ics_sources import SourceError, normalize_ics, validate_url
 from server.login_bundle import local_login_bundle
 from server.settings import ROOT, Settings
 from server.store import Store, digest
@@ -97,6 +98,8 @@ def create_app(settings=None):
     def security():
         if request.path == "/api/local-capture":
             request.max_content_length = 524288
+        elif request.path == "/api/sources":
+            request.max_content_length = 2097152
         g.new_cookie = None
         g.clear_cookie = False
         g.session = None
@@ -156,6 +159,12 @@ def create_app(settings=None):
     def bad_input(error):
         return jsonify(error=str(error)), 400
 
+    @app.errorhandler(SourceError)
+    def invalid_source(error):
+        messages = {"unsafe_url": "请使用公网 HTTPS ICS 链接（443 端口），不支持内网、登录凭据或片段标识",
+                    "invalid_ics": "ICS 无效或过大：请提供单个 UTF-8 iCalendar 2.0 文件，事件需有 UID 和开始时间；最多 512 KiB"}
+        return jsonify(error=messages.get(error.code, "ICS 来源暂时不可用")), 400
+
     @app.errorhandler(Exception)
     def internal_error(error):
         # Upstream bodies, SQL, request headers and tokens must not enter logs or responses.
@@ -190,6 +199,7 @@ def create_app(settings=None):
         if row:
             credentials = store.decrypt(row["credentials"])
             token = store.decrypt(row["feed_secret"])
+            sources = store.sources(owner)
             result["subscription"] = {
                 "username": credentials["username"],
                 "kind": credentials["kind"],
@@ -199,8 +209,13 @@ def create_app(settings=None):
                 "updated": row["updated"],
                 "error": row["error"],
                 "paused": row["failures"] >= 3,
-                "ready": row["calendar"] is not None,
+                "ready": row["calendar"] is not None or any(s["calendar"] is not None for s in sources),
                 "syncing": row["lease_until"] > time.time(),
+                "sources": [{"id": s["id"], "kind": s["kind"], "name": store.decrypt(s["name"]),
+                             "host": urlsplit(store.decrypt(s["url"])).hostname if s["url"] else None,
+                             "ready": s["calendar"] is not None, "updated": s["updated"], "checked": s["checked"],
+                             "error": s["error"], "queued": s["kind"] == "url" and s["due"] <= time.time(),
+                             "syncing": s["lease_until"] > time.time()} for s in sources],
             }
         return result
 
@@ -306,6 +321,51 @@ def create_app(settings=None):
         store.update(owner, credentials, options)
         return jsonify(state())
 
+    @app.post("/api/sources")
+    def save_source():
+        owner = require_owner()
+        limited("source-edit", 30, 3600)
+        data = request.get_json()
+        if not isinstance(data, dict) or set(data) - {"id", "kind", "name", "content", "url"}:
+            raise ValueError("请提供 ICS 文件或链接")
+        kind, name, identity = data.get("kind"), data.get("name"), data.get("id")
+        if (not isinstance(kind, str) or kind not in {"upload", "url"} or not isinstance(name, str) or not 1 <= len(name.strip()) <= 80
+                or any(ord(c) < 32 for c in name)
+                or identity is not None and (not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9_-]{24}", identity))):
+            raise ValueError("请填写来源名称（1–80 字）并选择文件或链接")
+        content, url = None, None
+        if kind == "upload":
+            if "url" in data:
+                raise ValueError("文件来源不能同时提供链接")
+            content = normalize_ics(data.get("content"))
+        else:
+            if "content" in data:
+                raise ValueError("链接来源不能同时上传文件")
+            url = validate_url(data.get("url"))
+        try:
+            store.save_source(owner, source_id=identity, kind=kind, name=name.strip(), content=content, url=url)
+        except LookupError:
+            abort(404)
+        return jsonify(state())
+
+    @app.post("/api/sources/<source_id>/refresh")
+    def refresh_source(source_id):
+        owner = require_owner()
+        limited("source-refresh", 30, 3600)
+        try:
+            queued = store.refresh_source(owner, source_id)
+        except LookupError:
+            abort(404)
+        if not queued:
+            abort(429, description="每个来源每分钟最多刷新一次")
+        return jsonify(state())
+
+    @app.post("/api/sources/<source_id>/delete")
+    def delete_source(source_id):
+        if not store.delete_source(require_owner(), source_id):
+            abort(404)
+        return jsonify(state())
+
     @app.post("/api/refresh")
     def refresh():
         owner = require_owner()
@@ -348,12 +408,12 @@ def create_app(settings=None):
         row = store.feed(token)
         if row is None:
             abort(404)
-        if row["calendar"] is None:
+        content = store.merged_calendar(row)
+        if content is None:
             response = jsonify(error="首次同步尚未成功，请在管理页面查看状态")
             response.status_code = 503
             response.headers["Retry-After"] = "300"
             return response
-        content = store.decrypt(row["calendar"])
         response = Response(content, content_type="text/calendar; charset=utf-8")
         response.set_etag(digest(content))
         response.headers["Content-Disposition"] = 'inline; filename="zjuical.ics"'

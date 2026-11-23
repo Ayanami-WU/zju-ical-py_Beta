@@ -9,6 +9,7 @@ from contextlib import contextmanager
 
 from cryptography.fernet import Fernet
 
+from server.ics_sources import MAX_SOURCES, SOURCE_ERRORS, merge_calendars
 from server.settings import Settings
 
 
@@ -43,6 +44,18 @@ class Store:
                 );
                 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value BLOB NOT NULL);
                 CREATE INDEX IF NOT EXISTS subscriptions_due ON subscriptions(due, lease_until);
+                CREATE TABLE IF NOT EXISTS calendar_sources (
+                    id TEXT PRIMARY KEY, owner TEXT NOT NULL,
+                    kind TEXT NOT NULL, name BLOB NOT NULL, url BLOB, target_hash TEXT NOT NULL,
+                    calendar BLOB, created REAL NOT NULL, updated REAL, checked REAL,
+                    due REAL NOT NULL, requested REAL NOT NULL,
+                    revision INTEGER NOT NULL DEFAULT 0, version INTEGER NOT NULL DEFAULT 1,
+                    failures INTEGER NOT NULL DEFAULT 0, error TEXT NOT NULL DEFAULT '',
+                    lease TEXT, lease_until REAL NOT NULL DEFAULT 0,
+                    FOREIGN KEY(owner) REFERENCES subscriptions(id) ON DELETE CASCADE,
+                    UNIQUE(owner, kind, target_hash)
+                );
+                CREATE INDEX IF NOT EXISTS calendar_sources_due ON calendar_sources(kind, due, lease_until);
             """)
             check = db.execute("SELECT value FROM metadata WHERE key='encryption-check'").fetchone()
             if check:
@@ -206,6 +219,114 @@ class Store:
     def delete(self, owner):
         with self.connection() as db:
             db.execute("DELETE FROM subscriptions WHERE id=?", (owner,))
+
+    def sources(self, owner):
+        with self.connection() as db:
+            return db.execute("SELECT * FROM calendar_sources WHERE owner=? ORDER BY created, id", (owner,)).fetchall()
+
+    def merged_calendar(self, row):
+        base = self.decrypt(row["calendar"]) if row["calendar"] is not None else None
+        sources = [{**dict(source), "calendar": self.decrypt(source["calendar"])}
+                   for source in self.sources(row["id"]) if source["calendar"] is not None]
+        return merge_calendars(base, sources)
+
+    def save_source(self, owner, *, source_id, kind, name, content=None, url=None):
+        now = time.time()
+        target = content if kind == "upload" else url
+        fingerprint = hmac.new(self.settings.encryption_key, (kind + ":" + target).encode(), "sha256").hexdigest()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            old = None
+            if source_id:
+                old = db.execute("SELECT * FROM calendar_sources WHERE id=? AND owner=?", (source_id, owner)).fetchone()
+                if old is None:
+                    raise LookupError
+                if old["kind"] != kind:
+                    raise ValueError("替换时请选择相同来源类型；更换类型请删除后重新添加")
+            duplicate = db.execute(
+                "SELECT * FROM calendar_sources WHERE owner=? AND kind=? AND target_hash=?", (owner, kind, fingerprint)
+            ).fetchone()
+            if duplicate:
+                if old and duplicate["id"] != old["id"]:
+                    raise ValueError("该文件或链接已经添加，请更新已有来源")
+                old = duplicate
+            if old:
+                changed = kind == "upload" and content != self.decrypt(old["calendar"])
+                db.execute(
+                    """UPDATE calendar_sources SET name=?, url=?, target_hash=?, calendar=COALESCE(?,calendar),
+                       updated=CASE WHEN ? THEN ? ELSE updated END, checked=CASE WHEN ? THEN ? ELSE checked END,
+                       revision=revision+?, version=version+1, due=?, requested=?, failures=0, error='',
+                       lease=NULL, lease_until=0 WHERE id=? AND owner=?""",
+                    (self.encrypt(name), self.encrypt(url) if url else None, fingerprint,
+                     self.encrypt(content) if kind == "upload" else None, changed, now, kind == "upload", now,
+                     int(changed), now if kind == "url" else 1e30, now, old["id"], owner),
+                )
+                return old["id"]
+            if db.execute("SELECT count(*) FROM calendar_sources WHERE owner=?", (owner,)).fetchone()[0] >= MAX_SOURCES:
+                raise ValueError(f"每个订阅最多添加 {MAX_SOURCES} 个 ICS 来源")
+            identity = secrets.token_urlsafe(18)
+            db.execute(
+                """INSERT INTO calendar_sources
+                   (id,owner,kind,name,url,target_hash,calendar,created,updated,checked,due,requested,revision)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (identity, owner, kind, self.encrypt(name), self.encrypt(url) if url else None, fingerprint,
+                 self.encrypt(content) if content is not None else None, now, now if content is not None else None,
+                 now if content is not None else None, now if kind == "url" else 1e30, now,
+                 1 if content is not None else 0),
+            )
+            return identity
+
+    def delete_source(self, owner, source_id):
+        with self.connection() as db:
+            return db.execute("DELETE FROM calendar_sources WHERE id=? AND owner=?", (source_id, owner)).rowcount == 1
+
+    def refresh_source(self, owner, source_id):
+        now = time.time()
+        with self.connection() as db:
+            row = db.execute("SELECT * FROM calendar_sources WHERE id=? AND owner=?", (source_id, owner)).fetchone()
+            if row is None:
+                raise LookupError
+            if row["kind"] != "url":
+                raise ValueError("文件来源请上传新版 ICS 替换")
+            if row["requested"] > now - 60:
+                return False
+            db.execute("UPDATE calendar_sources SET due=?,requested=? WHERE id=? AND owner=?", (now, now, source_id, owner))
+            return True
+
+    def claim_source(self):
+        now, lease = time.time(), secrets.token_hex(16)
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT * FROM calendar_sources WHERE kind='url' AND due<=? AND lease_until<? ORDER BY due LIMIT 1",
+                (now, now),
+            ).fetchone()
+            if row is None:
+                return None
+            db.execute("UPDATE calendar_sources SET lease=?,lease_until=? WHERE id=?", (lease, now + 90, row["id"]))
+            return {**dict(row), "lease": lease}
+
+    def finish_source(self, job, *, calendar=None, error=""):
+        if error and error not in SOURCE_ERRORS:
+            error = "source_unavailable"
+        now = time.time()
+        with self.connection() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT * FROM calendar_sources WHERE id=? AND version=? AND lease=?",
+                             (job["id"], job["version"], job["lease"])).fetchone()
+            if row:
+                changed = calendar is not None and (row["calendar"] is None or calendar != self.decrypt(row["calendar"]))
+                failures = row["failures"] + 1 if error else 0
+                delay = min(21600, 900 * 2 ** min(failures - 1, 5)) if error else self.settings.interval
+                db.execute(
+                    """UPDATE calendar_sources SET calendar=COALESCE(?,calendar),
+                       updated=CASE WHEN ? THEN ? ELSE updated END, revision=revision+?, checked=?,
+                       failures=?,error=?,due=?,lease=NULL,lease_until=0 WHERE id=?""",
+                    (self.encrypt(calendar) if calendar is not None else None, changed, now, int(changed), now,
+                     failures, error, now + delay, job["id"]),
+                )
+            # A replaced/deleted source must never be restored by a stale download.
+            db.execute("UPDATE calendar_sources SET lease=NULL,lease_until=0 WHERE id=? AND lease=?", (job["id"], job["lease"]))
 
     def claim(self):
         now, lease = time.time(), secrets.token_hex(16)
