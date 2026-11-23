@@ -23,6 +23,8 @@ def getCalender(
     skip_verification_and_use: str | None = None,
     request_delay: float = 1.5,
     include_todos: bool = False,
+    authenticated_client=None,
+    uid_namespace: str = "",
 ) -> tuple[str, str]:
     # 保留原有位置参数和二元返回值；上游新增选项使用关键字参数。
     if exams_only and courses_only:
@@ -47,8 +49,11 @@ def getCalender(
             )
 
     client_type = UgrsZjuam if login_method == "ugrs" else GrsZjuam
-    zjuam = client_type(username, password, request_delay)
-    zjuam.login()
+    if authenticated_client is None:
+        zjuam = client_type(username, password, request_delay)
+        zjuam.login()
+    else:
+        zjuam = authenticated_client
 
     termConfigs = config.termConfigs
 
@@ -131,4 +136,7 @@ def getCalender(
 
     suggested_filename = safe_cal_name + ".ics"
 
+    if uid_namespace:
+        for event in cal.events:
+            event.identity = f"{uid_namespace}:{event.identity or event.uid}"
     return cal.getICS(icalName=cal_name), suggested_filename

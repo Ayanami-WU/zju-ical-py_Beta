@@ -16,6 +16,16 @@
 - 自动调休安排（由作者不定期维护）
 - 考试安排，包括考点教室、考试座位（**目前仅支持本科生**）
 
+## Docker 多用户订阅服务
+
+新增独立的 Web 管理页与后台刷新 worker。用户在学校官方页面登录后，按路径提供本科教务 `JSESSIONID` 和教务 `JSESSIONTOKEN`，或研究生 `X-Access-Token`，即可获取独立的私人订阅 URL；**服务不接收统一认证密码或全局 SSO Cookie**。本科节点 Cookie 可在首次成功查询后自动学习并加密保存。支持定时更新、链接撤销/重置、管理密钥找回和删除数据；原 CLI 与单用户 `webical.py` 保留。
+
+网页也提供本机账号密码助手：密码仅用于本机向学校认证，生成教务专用会话文件后在网页导入。部署步骤及会话获取方式见 [Docker 服务文档](docs/docker-service.md)。学校会话过期后需要重新提供，研究生考试与服务版待办暂不支持。
+
+手机本科用户可通过学校页面的本机采集脚本获取课程与考试，再上传课表快照；不读取或上传登录 Cookie、密码，更新时需要重新采集上传，原订阅链接保持不变。iOS Safari 可配合 Userscripts，Android Firefox 可配合 Violentmonkey；手机实机兼容性需验证。当前 iOS Cookie-Editor 无法取得所需的 HttpOnly JSESSIONID，不能用于会话授权路径。
+
+koala3 预生产采用独立 Compose + Axiops external 端点，由现有 Traefik 提供 HTTPS，见 [external 部署文档](docs/external-deployment.md)。
+
 > [!WARNING]
 > 当前项目仍处于测试阶段，可能存在未知的问题，欢迎向[当前维护仓库提交 Pull Request](https://github.com/Ayanami-WU/zju-ical-py_Beta/pulls)。
 
@@ -23,7 +33,7 @@
 
 **该项目仅供学习交流使用，作者不对产生结果正确性与时效性做实时保证，使用者需自行承担因程序逻辑错误或课程时间变动导致的后果。**
 
-所有服务均在使用者的本地设备上运行，ZJUAM 登录密码加密传输，不会存在任何有关用户隐私的蓄意记录/收集行为。
+CLI 默认在使用者本机运行。多用户订阅服务在部署者的服务器上加密保存教务专用会话与日历缓存，不接收统一认证密码；部署者对服务器与加密密钥拥有控制权，使用前请确认信任该部署者。
 
 ## 开始使用
 
@@ -137,6 +147,7 @@ ruff check --fix .
 离线回归测试使用模拟接口响应，不需要账号或联网：
 
 ```sh
+pip install -r requirements-dev.txt
 python -m unittest discover -s tests -v
 ```
 

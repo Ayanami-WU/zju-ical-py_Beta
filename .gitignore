@@ -4,4 +4,6 @@ __pycache__
 *.local*
 .DS_Store
 .env
+.secrets/
+*.sqlite3*
 configs/tweaks.to_be_validated.json
